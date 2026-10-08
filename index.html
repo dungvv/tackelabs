@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tackelabs — The operating system for your company</title>
+<meta name="description" content="Tackelabs is building the operating system for your company — ledger, people, pipeline and stock in one system. Pre-release. Join the early-access waitlist.">
+<meta property="og:title" content="Tackelabs — The operating system for your company">
+<meta property="og:description" content="One system for the functions every company runs. Pre-release. Early access is open.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tackelabs.com">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230c0a06'/%3E%3Ctext x='7' y='22' font-family='monospace' font-size='16' font-weight='bold' fill='%23ffb340'%3E%26gt;%3C/text%3E%3Crect x='18' y='16' width='8' height='4' fill='%23ffb340'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --screen: #0c0a06;
+    --screen-2: #100d08;
+    --bezel: #1c1810;
+    --line: #2a2415;
+    --phosphor: #ffb340;
+    --phosphor-hi: #ffd08a;
+    --dim: #98855a;
+    --faint: #4d422c;
+    --green: #8fd977;
+    --red: #ff6f5e;
+    --caret-blink: 1.06s;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { height: 100%; }
+
+  body {
+    height: 100dvh;
+    background:
+      radial-gradient(120% 90% at 50% 40%, #14100a 0%, var(--screen) 55%, #070604 100%);
+    color: var(--phosphor);
+    font-family: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 15px;
+    line-height: 1.55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(10px, 2.5vmin, 28px);
+    overflow: hidden;
+  }
+
+  /* ---- browser surfaces ---- */
+  ::selection { background: var(--phosphor); color: var(--screen); }
+  :focus-visible { outline: 1px dashed var(--phosphor); outline-offset: 3px; }
+  a { color: var(--phosphor-hi); text-underline-offset: 3px; }
+  a:hover { background: var(--phosphor); color: var(--screen); text-decoration: none; }
+
+  /* ===================== terminal window ===================== */
+  .crt {
+    position: relative;
+    width: min(980px, 100%);
+    height: min(760px, 100%);
+    display: flex;
+    flex-direction: column;
+    background: var(--screen-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow:
+      0 0 0 1px #000,
+      0 24px 70px -18px rgba(0, 0, 0, 0.85),
+      0 0 90px -30px rgba(255, 179, 64, 0.12);
+    overflow: hidden;
+    animation: power-on 0.55s cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  @keyframes power-on {
+    0%   { opacity: 0; transform: scaleY(0.005) scaleX(0.7); filter: brightness(3); }
+    60%  { opacity: 1; transform: scaleY(1.02) scaleX(1); filter: brightness(1.4); }
+    100% { transform: none; filter: none; }
+  }
+
+  /* scanlines + phosphor vignette, subtle */
+  .crt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px),
+      radial-gradient(115% 100% at 50% 45%, transparent 62%, rgba(0,0,0,0.38) 100%);
+    mix-blend-mode: multiply;
+    z-index: 5;
+  }
+
+  /* ---- title bar ---- */
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--bezel);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    color: var(--dim);
+    user-select: none;
+    flex: 0 0 auto;
+  }
+  .led { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); }
+  .led.amber { background: var(--phosphor); box-shadow: 0 0 7px var(--phosphor); }
+  .titlebar .name { color: var(--phosphor); font-weight: 600; }
+  .titlebar .spacer { flex: 1; }
+  .titlebar .meta { color: var(--faint); }
+  @media (max-width: 560px) { .titlebar .meta { display: none; } }
+
+  /* ---- session scrollback ---- */
+  .session {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px clamp(14px, 3vw, 26px) 22px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--faint) transparent;
+    text-shadow: 0 0 6px rgba(255, 179, 64, 0.18);
+    cursor: text;
+  }
+  .session::-webkit-scrollbar { width: 8px; }
+  .session::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 4px; }
+  .session::-webkit-scrollbar-track { background: transparent; }
+
+  .out { white-space: pre-wrap; overflow-wrap: break-word; }
+  .out .t-dim   { color: var(--dim); }
+  .out .t-faint { color: var(--faint); }
+  .out .t-hi    { color: var(--phosphor-hi); font-weight: 600; }
+  .out .t-ok    { color: var(--green); font-weight: 600; }
+  .out .t-warn  { color: var(--phosphor); }
+  .out .t-err   { color: var(--red); }
+  .out .t-bold  { font-weight: 700; }
+
+  .skip-hint { color: var(--faint); font-size: 11px; }
+
+  /* ---- prompt line ---- */
+  .pline { display: flex; align-items: baseline; white-space: pre-wrap; overflow-wrap: break-word; }
+  .ps1 { color: var(--green); font-weight: 600; flex: 0 0 auto; }
+  .ps1 .path { color: var(--phosphor); }
+  .typed { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .caret {
+    display: inline-block;
+    width: 0.62em;
+    height: 1.15em;
+    margin-left: 1px;
+    background: var(--phosphor);
+    vertical-align: text-bottom;
+    animation: blink var(--caret-blink) steps(1) infinite;
+    box-shadow: 0 0 8px rgba(255, 179, 64, 0.55);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* visually hidden real input (drives mobile keyboards + paste) */
+  #kb {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    opacity: 0;
+    font-size: 16px; /* prevents iOS zoom */
+  }
+
+  /* ---- status bar ---- */
+  .statusbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 14px;
+    background: var(--bezel);
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--dim);
+    user-select: none;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .statusbar .tag { color: var(--screen); background: var(--phosphor); padding: 0 7px; font-weight: 700; }
+  .statusbar .spacer { flex: 1; }
+  .statusbar .right { color: var(--faint); }
+  @media (max-width: 640px) { .statusbar .mid, .statusbar .right { display: none; } }
+
+  .banner { color: var(--phosphor); font-weight: 500; font-size: 0.8em; white-space: pre; overflow: hidden; }
+  .banner-compact { display: none; }
+  @media (max-width: 700px) {
+    .banner { display: none; }
+    .banner-compact { display: block; color: var(--phosphor); font-weight: 600; }
+    .session { font-size: 11px; }
+    .out .desc { display: none; }
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 0; }
+    .crt { border-radius: 0; border-left: 0; border-right: 0; height: 100dvh; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .crt { animation: none; }
+    .caret { animation: none; }
+    .crt::after { background: radial-gradient(115% 100% at 50% 45%, transparent 62%, rgba(0,0,0,0.38) 100%); }
+  }
+</style>
+</head>
+<body>
+<!--
+  DIRECTION CONTRACT — seed 25d81685 (kind: pick)
+  THESIS: the page is not about an OS — it IS the OS, caught mid-boot. The
+  visitor watches Tackelabs come online module by module, then the only
+  interactive element is the login prompt where their email goes. Refuses the
+  category default (dark hero + centered email input + gradient glow).
+  OWN-WORLD: amber-phosphor terminal — warm near-black CRT ground, Martian
+  Mono everywhere, kernel-log grammar with timestamps, [ OK ] in green, box
+  drawing, bezel + tmux-style status bar. Amber carries identity; green is
+  reserved for OK/GRANTED.
+  STORY: "an operating system that runs a company" is demonstrated, not
+  claimed — ledger.ko, people.ko, pipeline.ko, stock.ko mount before your
+  eyes. The pitch prints as `man tackelabs`; the waitlist is a command.
+  FIRST VIEWPORT: one terminal window fills the screen — slim title bar
+  (LEDs, tty1), session scrollback typing itself bottom-up, tmux status bar.
+  Boot ends at a live prompt with blinking block caret.
+  FORM: terminal/boot sequence — position 1 of 7 grounded candidates, seed
+  key 25d81685, chosen as IMPECCABLE'S PICK.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the
+  finish review, the verdict, DESIGN.md, and every shipping raster carrying
+  its provenance
+-->
+<main class="crt" id="crt" aria-label="Tackelabs terminal">
+  <div class="titlebar">
+    <span class="led"></span>
+    <span class="led amber"></span>
+    <span class="name">tackelabs-os</span>
+    <span class="spacer"></span>
+    <span class="meta">guest&nbsp;session&nbsp;·&nbsp;tty1&nbsp;·&nbsp;UTF-8</span>
+  </div>
+
+  <div class="session" id="session" role="log" aria-live="polite" aria-label="Terminal output"></div>
+
+  <label id="kb-label" for="kb" style="position:fixed;left:-9999px;">terminal input</label>
+  <input id="kb" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="terminal input">
+
+  <div class="statusbar">
+    <span class="tag">tackelabs</span>
+    <span class="mid">early access&nbsp;·&nbsp;open</span>
+    <span class="mid">build&nbsp;v0.9.1-rc</span>
+    <span class="spacer"></span>
+    <span class="right">tackelabs.com</span>
+  </div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     Waitlist endpoint: set WAITLIST_ENDPOINT to your form backend
+     (e.g. Formspree / Buttondown action URL). When empty, submissions
+     are kept in localStorage and confirmed locally — no data leaves
+     the browser. Replace before launch.
+  ------------------------------------------------------------------ */
+  const WAITLIST_ENDPOINT = "";
+
+  const $ = (sel, el = document) => el.querySelector(sel);
+  const session = $("#session");
+  const kb = $("#kb");
+  const crt = $("#crt");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const BANNER = `
+████████╗ █████╗  ██████╗██╗  ██╗███████╗██╗      █████╗ ██████╗ ███████╗
+╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝██╔════╝██║     ██╔══██╗██╔══██╗██╔════╝
+   ██║   ███████║██║     █████╔╝ █████╗  ██║     ███████║██████╔╝███████╗
+   ██║   ██╔══██║██║     ██╔═██╗ ██╔══╝  ██║     ██╔══██║██╔══██╗╚════██║
+   ██║   ██║  ██║╚██████╗██║  ██╗███████╗███████╗██║  ██║██████╔╝███████║
+   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝`;
+
+  const BANNER_COMPACT = `┌───────────────┐
+│  TACKELABS OS │
+└───────────────┘`;
+
+  /* ---------- printing helpers ---------- */
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  function scrollBottom() { session.scrollTop = session.scrollHeight; }
+
+  function line(html = "") {
+    const div = document.createElement("div");
+    div.className = "out";
+    div.innerHTML = html;
+    session.appendChild(div);
+    scrollBottom();
+    return div;
+  }
+
+  const ts = t => `<span class="t-faint">[${t.toFixed(6).padStart(11, " ")}]</span>`;
+
+  /* monotonic session clock — continues from where boot log ends */
+  let clock = 2.0;
+  const stamp = () => {
+    clock += 0.05 + Math.random() * 0.09;
+    return `<span class="t-faint">[${clock.toFixed(6).padStart(11, " ")}]</span>`;
+  };
+
+  /* type a string into an element, variable cadence, returns promise */
+  function typeInto(el, text, cps = 220) {
+    return new Promise(res => {
+      if (reduced) { el.textContent = text; scrollBottom(); return res(); }
+      let i = 0;
+      (function tick() {
+        if (skip) { el.textContent = text; scrollBottom(); return res(); }
+        el.textContent = text.slice(0, ++i);
+        scrollBottom();
+        if (i >= text.length) return res();
+        const ch = text[i - 1];
+        const pause = ch === "\n" ? 40 : (1000 / cps) * (0.5 + Math.random());
+        setTimeout(tick, pause);
+      })();
+    });
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, skip || reduced ? 0 : ms));
+
+  /* ---------- boot ---------- */
+  let skip = false;
+  let booted = false;
+
+  async function boot() {
+    const hint = line(`<span class="skip-hint">— press any key to skip boot —</span>`);
+    await wait(500);
+
+    line(`<pre class="out banner">${BANNER}</pre><pre class="out banner-compact">${BANNER_COMPACT}</pre>`);
+    await wait(350);
+    line(`<span class="t-hi">TACKELABS OS</span> <span class="t-dim">v0.9.1-rc — early access build</span>`);
+    line(`<span class="t-dim">(c) ${new Date().getFullYear()} Tackelabs · all systems provisional</span>`);
+    line();
+    await wait(400);
+
+    const t0 = 0.14;
+    const rows = [
+      [t0,          "tackelabs-os: initializing company kernel"],
+      [t0 + 0.103,  "mem: 1 company detected — no spreadsheet partitions found"],
+      [t0 + 0.219,  "mounting modules…"],
+    ];
+    for (const [t, msg] of rows) { line(`${ts(t)} ${esc(msg)}`); await wait(190); }
+
+    const modules = [
+      ["ledger.ko",       "accounting · cash",        "ok"],
+      ["people.ko",       "payroll · org",            "ok"],
+      ["pipeline.ko",     "quotes → cash",            "ok"],
+      ["stock.ko",        "inventory",                "ok"],
+      ["integrations.ko", "your stack, wired in",     "wait"],
+    ];
+
+    const dotW = matchMedia("(max-width: 700px)").matches ? 19 : 30;
+    let t = t0 + 0.31;
+    for (const [mod, desc, state] of modules) {
+      const el = line();
+      const tsPlain = `[${t.toFixed(6).padStart(11, " ")}]`;
+      const name = `  ${mod}`;
+      const dotline = name.padEnd(17, " ").padEnd(dotW, ".");
+      await typeInto(el, `${tsPlain} ${dotline} `, 320);
+      const cls = state === "ok" ? "t-ok" : "t-warn";
+      const tag = state === "ok" ? "[&nbsp;OK&nbsp;]" : "[&nbsp;WAIT&nbsp;]";
+      el.innerHTML = `${ts(t)} ${esc(dotline)} <span class="${cls}">${tag}</span>  <span class="t-dim desc">${esc(desc)}</span>`;
+      scrollBottom();
+      t += 0.14 + Math.random() * 0.1;
+      await wait(160);
+    }
+
+    line();
+    line(`${ts(t += 0.21)} <span class="t-hi">one system. every function. no duct-tape stack.</span>`);
+    await wait(280);
+    line(`${ts(t += 0.12)} net: tackelabs.com reachable`);
+    await wait(240);
+    line(`${ts(t += 0.11)} status: <span class="t-warn">pre-release</span> — general availability: <span class="t-hi">soon</span>`);
+    await wait(300);
+    hint.remove();
+    clock = t;
+
+    /* the pitch, printed as part of the session */
+    await typeCmd("man tackelabs", 90);
+    line();
+    line(`<span class="t-dim">TACKELABS(1)              User Commands             TACKELABS(1)</span>`);
+    line();
+    line(`<span class="t-hi">NAME</span>`);
+    line(`     tackelabs — the operating system for your company`);
+    line();
+    line(`<span class="t-hi">DESCRIPTION</span>`);
+    line(`     One system that runs the functions every company needs —`);
+    line(`     money, people, sales, inventory — without an ERP`);
+    line(`     implementation project or a five-tool duct-tape stack.`);
+    line();
+    line(`     Built for startups that would rather ship product`);
+    line(`     than administer software.`);
+    line();
+    line(`<span class="t-hi">EARLY ACCESS</span>`);
+    line(`     run  <span class="t-hi">waitlist you@company.com</span>  to request credentials`);
+    line(`     run  <span class="t-hi">help</span>                         for everything else`);
+    line();
+    prompt();
+    booted = true;
+    kb.focus({ preventScroll: true });
+  }
+
+  /* ---------- prompt ---------- */
+  let currentPrompt = null;
+
+  function ps1HTML() {
+    return `<span class="ps1">guest@tackelabs<span class="path">:~$</span>&nbsp;</span>`;
+  }
+
+  function prompt() {
+    const p = document.createElement("div");
+    p.className = "pline";
+    p.innerHTML = `${ps1HTML()}<span class="typed"></span><span class="caret"></span>`;
+    session.appendChild(p);
+    currentPrompt = { el: p, typed: p.querySelector(".typed"), text: "" };
+    scrollBottom();
+  }
+
+  /* echo a command as if typed, then lock the line */
+  async function typeCmd(cmd, cps = 140) {
+    const p = document.createElement("div");
+    p.className = "pline";
+    p.innerHTML = `${ps1HTML()}<span class="typed"></span>`;
+    session.appendChild(p);
+    await typeInto(p.querySelector(".typed"), cmd, cps);
+    await wait(220);
+    scrollBottom();
+  }
+
+  function echoDone(text) {
+    const p = document.createElement("div");
+    p.className = "pline";
+    p.innerHTML = `${ps1HTML()}<span class="typed">${esc(text)}</span>`;
+    session.appendChild(p);
+  }
+
+  /* ---------- command interpreter ---------- */
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  const COMMANDS = {
+    help: () => {
+      line(`<span class="t-hi">commands</span>`);
+      const rows = [
+        ["waitlist <email>", "request early-access credentials"],
+        ["modules",          "what ships inside the OS"],
+        ["man tackelabs",    "the longer description"],
+        ["status",           "where the build stands"],
+        ["contact",          "reach a human"],
+        ["whoami",           "you"],
+        ["clear",            "wipe the scrollback"],
+      ];
+      for (const [c, d] of rows)
+        line(`  ${c.padEnd(20, " ")}<span class="t-dim">${esc(d)}</span>`);
+      line();
+      line(`<span class="t-dim">tip: pasting your email at the prompt also works.</span>`);
+    },
+
+    modules: () => {
+      line(`<span class="t-hi">MODULE         FUNCTION                          PHASE</span>`);
+      const rows = [
+        ["ledger",       "money in, money out, books that close",  "in-build", "t-ok"],
+        ["people",       "payroll, org, leave",                    "in-build", "t-ok"],
+        ["pipeline",     "leads → quotes → cash",                  "in-build", "t-ok"],
+        ["stock",        "inventory, purchasing",                  "spec'd",   "t-warn"],
+        ["integrations", "the tools you already run, wired in",    "spec'd",   "t-warn"],
+      ];
+      for (const [m, f, ph, cls] of rows)
+        line(`${m.padEnd(15, " ")}${f.padEnd(34, " ")}<span class="${cls}">${ph}</span>`);
+      line();
+      line(`<span class="t-dim">phases are build status, provisional — this build is pre-release.</span>`);
+    },
+
+    "man tackelabs": () => {
+      line(`<span class="t-hi">NAME</span>`);
+      line(`     tackelabs — the operating system for your company`);
+      line();
+      line(`<span class="t-hi">SYNOPSIS</span>`);
+      line(`     tackelabs [--ledger] [--people] [--pipeline] [--stock]`);
+      line();
+      line(`<span class="t-hi">DESCRIPTION</span>`);
+      line(`     Every company runs the same core functions. Today you`);
+      line(`     rent five tools and stitch them with exports. Tackelabs`);
+      line(`     is one system where a signed quote becomes revenue,`);
+      line(`     headcount becomes payroll, and stock becomes COGS —`);
+      line(`     because the modules share a kernel.`);
+      line();
+      line(`<span class="t-hi">BUGS</span>`);
+      line(`     reports: <a href="mailto:hello@tackelabs.com">hello@tackelabs.com</a>`);
+    },
+
+    status: () => {
+      line(`<span class="t-hi">system status</span>`);
+      line(`  release        <span class="t-warn">pre-release</span> — v0.9.1-rc`);
+      line(`  early access   <span class="t-ok">open</span>`);
+      line(`  launch date    when it's right`);
+      line();
+      line(`<span class="t-dim">run 'modules' for per-module build status.</span>`);
+    },
+
+    contact: () => {
+      line(`<span class="t-hi">contact</span>`);
+      line(`  <a href="mailto:hello@tackelabs.com">hello@tackelabs.com</a>`);
+      line();
+      line(`<span class="t-dim">humans read this inbox. founders, especially.</span>`);
+    },
+
+    whoami: () => line(`guest <span class="t-dim">— early access pending</span>`),
+    about:  () => COMMANDS["man tackelabs"](),
+    clear:  () => { session.innerHTML = ""; },
+    exit:   () => line(`<span class="t-dim">there is no exit. only early access.</span>`),
+    quit:   () => COMMANDS.exit(),
+    logout: () => COMMANDS.exit(),
+    sudo:   () => line(`<span class="t-err">sudo:</span> permission denied — root unlocks at launch`),
+  };
+
+  async function runCommand(raw) {
+    const text = raw.trim();
+    echoDone(raw);
+    if (!text) return prompt();
+
+    const [cmd0, ...rest] = text.split(/\s+/);
+    const cmd = cmd0.toLowerCase();
+    const joined = text.toLowerCase();
+
+    /* email anywhere in the input → waitlist */
+    if (cmd === "waitlist" || EMAIL_RE.test(text) || (cmd === "sudo" && joined.includes("waitlist"))) {
+      const email = EMAIL_RE.test(text) ? text : (rest.find(a => EMAIL_RE.test(a)) || "");
+      if (!email) {
+        line(`<span class="t-err">usage:</span> waitlist you@company.com`);
+        return prompt();
+      }
+      return submitWaitlist(email);
+    }
+
+    if (cmd === "man") { COMMANDS["man tackelabs"](); return prompt(); }
+    if (cmd === "sudo") { COMMANDS.sudo(); return prompt(); }
+    const fn = COMMANDS[cmd] || COMMANDS[joined];
+    if (fn) { fn(); return prompt(); }
+
+    line(`<span class="t-err">${esc(cmd)}:</span> command not found — type <span class="t-hi">help</span>`);
+    prompt();
+  }
+
+  async function submitWaitlist(email) {
+    line();
+    line(`${stamp()} waitlist: validating ${esc(email)} …`);
+    await wait(350);
+
+    let queued = false, note = "";
+    if (WAITLIST_ENDPOINT) {
+      try {
+        const r = await fetch(WAITLIST_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        queued = r.ok;
+        if (!r.ok) note = "endpoint rejected the request";
+      } catch { note = "network unreachable"; }
+    } else {
+      const q = JSON.parse(localStorage.getItem("tk_waitlist") || "[]");
+      if (!q.includes(email)) { q.push(email); localStorage.setItem("tk_waitlist", JSON.stringify(q)); }
+      queued = true;
+    }
+
+    if (queued) {
+      line(`${stamp()} waitlist: position assigned → <span class="t-hi">${esc(email)}</span>`);
+      await wait(220);
+      line(`${stamp()} access: <span class="t-ok">REQUEST LOGGED</span> <span class="t-dim">— credentials ship at launch</span>`);
+      line();
+      line(`<span class="t-dim">we'll write when it's your turn. no drip campaign, no spam.</span>`);
+    } else {
+      line(`${stamp()} <span class="t-err">error:</span> ${note || "could not queue request"}`);
+      line(`<span class="t-dim">recovery: write to <a href="mailto:hello@tackelabs.com">hello@tackelabs.com</a> — a human will add you.</span>`);
+    }
+    line();
+    prompt();
+  }
+
+  /* ---------- input plumbing ---------- */
+  function setTyped(v) {
+    if (!currentPrompt) return;
+    currentPrompt.text = v;
+    currentPrompt.typed.textContent = v;
+    scrollBottom();
+  }
+
+  kb.addEventListener("input", () => setTyped(kb.value));
+  kb.addEventListener("keydown", e => {
+    if (e.key === "Enter" && booted && currentPrompt) {
+      const v = kb.value;
+      kb.value = "";
+      currentPrompt.el.remove();
+      currentPrompt = null;
+      runCommand(v);
+    }
+  });
+
+  crt.addEventListener("click", () => kb.focus({ preventScroll: true }));
+  crt.addEventListener("keydown", e => {
+    if (!booted && !skip) { skip = true; return; }
+    if (e.target !== kb && e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+      kb.focus();
+      kb.value += e.key;
+      kb.dispatchEvent(new Event("input"));
+    }
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
